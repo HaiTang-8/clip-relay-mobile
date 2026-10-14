@@ -59,7 +59,7 @@ void main() {
         base64Url.decode(base64Url.normalize(request['requestKey'] as String)));
   });
 
-  final verifyScript = File('$repoRoot/relay-protocol/scripts/verify-license-dart-output.cjs');
+  final verifyScript = File('$protocolDir/scripts/verify-license-dart-output.cjs');
 
   test('Dart request envelope is decrypted by the Node license server', skip: verifyScript.existsSync() ? false : 'requires the license server verify script', () async {
     final payload = {'licenseKey': 'DEV-CLIPBOARD-PRO', 'deviceId': 'm_dart', 'platform': 'ios', 'deviceName': '测试 iPhone', 'requestId': 'r1', 'timestamp': DateTime.now().toUtc().toIso8601String()};

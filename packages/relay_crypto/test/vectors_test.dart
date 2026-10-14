@@ -7,7 +7,7 @@ import 'package:relay_crypto/src/primitives.dart' show sha256Bytes;
 import 'package:test/test.dart';
 
 final Map<String, dynamic> vectors = jsonDecode(
-  File(Platform.environment['RELAY_VECTORS'] ?? '../../relay-protocol/test-vectors/v1.json').readAsStringSync(),
+  File(Platform.environment['RELAY_VECTORS'] ?? '${Platform.environment['RELAY_PROTOCOL_DIR'] ?? '../../relay-protocol'}/test-vectors/v1.json').readAsStringSync(),
 ) as Map<String, dynamic>;
 
 Map<String, dynamic> get devices => vectors['devices'] as Map<String, dynamic>;

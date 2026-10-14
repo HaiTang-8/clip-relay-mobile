@@ -5,8 +5,8 @@ import 'dart:typed_data';
 import 'package:clip_relay/core/license_crypto.dart';
 import 'package:pointycastle/export.dart' as pc;
 
-final String repoRoot = Directory.current.parent.path;
-final String vectorsPath = '$repoRoot/relay-protocol/test-vectors/license-transport-v1.json';
+final String protocolDir = Platform.environment['RELAY_PROTOCOL_DIR'] ?? '${Directory.current.parent.path}/relay-protocol';
+final String vectorsPath = '$protocolDir/test-vectors/license-transport-v1.json';
 
 final Map<String, dynamic> licenseVectors = jsonDecode(File(vectorsPath).readAsStringSync()) as Map<String, dynamic>;
 final String testPublicKeyPem = (licenseVectors['rsa'] as Map)['publicKeyPem'] as String;

@@ -6,7 +6,8 @@ import 'package:relay_crypto/relay_crypto.dart';
 import 'package:relay_crypto/src/primitives.dart' show sha256Bytes;
 import 'package:test/test.dart';
 
-final String verifyScript = File('../../relay-protocol/scripts/verify-dart-output.cjs').absolute.path;
+final String protocolDir = Platform.environment['RELAY_PROTOCOL_DIR'] ?? '../../relay-protocol';
+final String verifyScript = File('$protocolDir/scripts/verify-dart-output.cjs').absolute.path;
 
 Uint8List pattern(int length) => Uint8List.fromList(List.generate(length, (i) => (i * 131 + 3) & 0xff));
 

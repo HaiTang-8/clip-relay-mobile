@@ -40,7 +40,14 @@ flutter run --dart-define-from-file=config/relay.json
 (cd app && flutter analyze && flutter test)
 ```
 
-与 Node 参考实现的双向校验测试依赖私有服务端仓库，在本仓库中自动跳过；跨语言一致性由 `relay-protocol/test-vectors/` 保证（向量中的 RSA 密钥仅用于测试）。
+跨语言一致性由 `relay-protocol/test-vectors/` 保证（向量中的 RSA 密钥仅用于测试）。与 Node 参考实现的双向校验依赖私有服务端仓库，默认跳过；有该仓库时指定其 `relay-protocol` 目录即可运行（同时改用其中的测试向量）：
+
+```bash
+RELAY_PROTOCOL_DIR=/path/to/clipboard/relay-protocol dart test       # packages/relay_crypto
+RELAY_PROTOCOL_DIR=/path/to/clipboard/relay-protocol flutter test    # app
+```
+
+协议或测试向量变更后，把私有仓库的 `relay-protocol/PROTOCOL.md` 与 `test-vectors/` 同步到本仓库。
 
 Android Release 签名：在 `app/android/key.properties` 写入 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`；文件不存在时使用 debug 签名。
 
