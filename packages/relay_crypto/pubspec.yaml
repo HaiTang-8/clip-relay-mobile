@@ -1,0 +1,13 @@
+name: relay_crypto
+description: clip-relay v1 encryption format (Dart implementation, byte-compatible with src/relay/crypto.cjs).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  cryptography: ^2.9.0
+
+dev_dependencies:
+  test: ^1.25.0

@@ -1,0 +1,44 @@
+name: clip_relay
+description: 超级剪切板移动端：与电脑端通过取件码互传文本、图片和文件。
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  background_downloader: ^9.5.9
+  crypto: ^3.0.6
+  cryptography: ^2.9.0
+  cryptography_flutter: ^2.3.4
+  file_picker: ^13.1.0
+  flutter_secure_storage: ^11.2.0
+  gal: ^2.3.3
+  http: ^1.6.0
+  image: ^4.5.4
+  image_picker: ^1.2.3
+  mobile_scanner: ^7.4.2
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  pointycastle: ^4.0.0
+  receive_sharing_intent: 1.8.1
+  relay_crypto:
+    path: ../packages/relay_crypto
+  share_plus: ^13.3.1
+  shadcn_ui: ^0.53.6
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  config:
+    enable-swift-package-manager: false

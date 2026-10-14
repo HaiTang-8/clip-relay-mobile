@@ -1,0 +1,5 @@
+{
+  "licenseServerUrl": "https://license.example.com",
+  "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...(public.pem body, single line)",
+  "transportPublicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...(transport-public.pem body, single line)"
+}

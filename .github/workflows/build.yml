@@ -1,0 +1,196 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ios_export_method:
+        description: iOS export method (used when signing secrets are configured)
+        type: choice
+        options: [ad-hoc, development, app-store, enterprise]
+        default: ad-hoc
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.38.5
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: relay_crypto
+        working-directory: packages/relay_crypto
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+      - name: app
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+  android:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Version
+        run: ../ci/version.sh >> "$GITHUB_ENV"
+      - name: Relay config
+        env:
+          RELAY_CONFIG_JSON: ${{ secrets.RELAY_CONFIG_JSON }}
+        run: ../ci/relay_config.sh
+      - name: Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set, the APK is signed with the debug key"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          cat > android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+      - name: Build APK
+        run: |
+          flutter build apk --release --dart-define-from-file=config/relay.json $BUILD_ARGS
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/clip-relay-$APP_VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: app/dist/*.apk
+          if-no-files-found: error
+
+  ios:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Version
+        run: ../ci/version.sh >> "$GITHUB_ENV"
+      - name: Relay config
+        env:
+          RELAY_CONFIG_JSON: ${{ secrets.RELAY_CONFIG_JSON }}
+        run: ../ci/relay_config.sh
+      - name: Signing
+        id: signing
+        env:
+          CERT_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          EXTENSION_PROFILE_BASE64: ${{ secrets.IOS_SHARE_EXTENSION_PROFILE_BASE64 }}
+          EXPORT_METHOD: ${{ inputs.ios_export_method || vars.IOS_EXPORT_METHOD || 'ad-hoc' }}
+        run: |
+          if [ -z "$CERT_BASE64" ] || [ -z "$PROFILE_BASE64" ] || [ -z "$EXTENSION_PROFILE_BASE64" ]; then
+            echo "::warning::iOS signing secrets are not set, building an unsigned IPA"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+          echo "$CERT_BASE64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/^ *1) [0-9A-F]* "\(.*\)"$/\1/p')
+          [ -n "$IDENTITY" ] || { echo "::error::no code signing identity in IOS_CERTIFICATE_P12_BASE64"; exit 1; }
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          echo "$PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/app.mobileprovision"
+          echo "$EXTENSION_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/extension.mobileprovision"
+          for p in app extension; do
+            uuid=$(security cms -D -i "$RUNNER_TEMP/$p.mobileprovision" | plutil -extract UUID raw -)
+            cp "$RUNNER_TEMP/$p.mobileprovision" "$PROFILES_DIR/$uuid.mobileprovision"
+          done
+          python3 ../ci/ios_manual_signing.py ios/Runner.xcodeproj/project.pbxproj "$RUNNER_TEMP/ExportOptions.plist" \
+            "$EXPORT_METHOD" "$IDENTITY" "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/extension.mobileprovision"
+          echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+      - name: Build signed IPA
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          flutter build ipa --release --dart-define-from-file=config/relay.json $BUILD_ARGS \
+            --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+          mkdir -p dist
+          cp build/ios/ipa/*.ipa "dist/clip-relay-$APP_VERSION.ipa"
+      - name: Build unsigned IPA
+        if: steps.signing.outputs.signed != 'true'
+        run: |
+          flutter build ios --release --no-codesign --dart-define-from-file=config/relay.json $BUILD_ARGS
+          mkdir -p dist Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry "dist/clip-relay-$APP_VERSION-unsigned.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: app/dist/*.ipa
+          if-no-files-found: error
+      - name: Cleanup keychain
+        if: always() && steps.signing.outputs.keychain
+        run: security delete-keychain "${{ steps.signing.outputs.keychain }}"
+
+  release:
+    needs: [android, ios]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
