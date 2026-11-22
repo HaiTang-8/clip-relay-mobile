@@ -25,7 +25,7 @@ void main() {
 
   testWidgets('bind, receive from PC, send to PC against the live harness', (tester) async {
     final store = SecureKeyValueStore();
-    final config = AppConfig.fromEnvironment();
+    final config = AppConfig.fromEnvironment(appVersion: '0.0.0-e2e');
     expect(config.publicKey, isNotEmpty, reason: 'run with --dart-define-from-file=config/relay.e2e.json');
     final controller = AppController(
       binding: BindingService(config: config, store: store, platform: 'ios'),

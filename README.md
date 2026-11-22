@@ -100,6 +100,14 @@ CI 使用 `ci/ios_manual_signing.py` 在构建机上临时把 Runner 与 Share E
 
 分享扩展的实际分享流程（照片 App → 分享 → 超级剪切板）需在真机或模拟器 UI 中手动验证。
 
+## 自动更新
+
+* 版本号跟随 tag：标签构建以 `--build-name` 写入安装包版本，App 运行时用 `package_info_plus` 读取，绑定上报、「设备」页显示与更新比较都用这个值。
+* 更新源是授权服务器（`licenseServerUrl`）代理的本仓库最新 GitHub Release：`/mobile/update/latest` 返回版本与安装包信息，`/mobile/update/download/<文件名>` 下载，`/mobile/update/source.json` 是全能签软件源。
+* 冷启动自动检查（24 小时最多一次，可忽略某个版本）；「设备」页可手动检查。下载后校验大小与 sha256。
+* Android：调起系统安装器（首次需允许「安装未知应用」）。覆盖安装要求签名一致，正式发布前请配置固定的 release keystore。
+* iOS（未签名 IPA）：下载后通过分享面板选择「全能签」导入并签名安装；或在全能签「软件源」中添加「设备」页显示的软件源地址，之后在全能签里直接更新。
+
 ## Android
 
 `applicationId com.clipboard.manager.mobile`、`cliprelay://bind` 深链、`SEND`/`SEND_MULTIPLE` 分享入口、`minSdk 24`。Android 上剪贴板一键发送仅支持文本。

@@ -1,20 +1,26 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  const AppConfig({required this.licenseServerUrl, required this.publicKey, required this.transportPublicKey, this.requireTrustRoots = kReleaseMode});
+  const AppConfig({
+    required this.licenseServerUrl,
+    required this.publicKey,
+    required this.transportPublicKey,
+    this.requireTrustRoots = kReleaseMode,
+    this.appVersion = '0.0.0',
+  });
 
-  factory AppConfig.fromEnvironment() => const AppConfig(
-        licenseServerUrl: String.fromEnvironment('licenseServerUrl'),
-        publicKey: String.fromEnvironment('publicKey'),
-        transportPublicKey: String.fromEnvironment('transportPublicKey'),
+  factory AppConfig.fromEnvironment({required String appVersion}) => AppConfig(
+        licenseServerUrl: const String.fromEnvironment('licenseServerUrl'),
+        publicKey: const String.fromEnvironment('publicKey'),
+        transportPublicKey: const String.fromEnvironment('transportPublicKey'),
+        appVersion: appVersion,
       );
 
   final String licenseServerUrl;
   final String publicKey;
   final String transportPublicKey;
   final bool requireTrustRoots;
-
-  static const appVersion = '1.0.0';
+  final String appVersion;
 
   Uri serverUri(String value) {
     final uri = Uri.tryParse(value.trim());

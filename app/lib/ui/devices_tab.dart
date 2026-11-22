@@ -3,14 +3,17 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../app/app_controller.dart';
 import '../core/binding.dart';
+import '../core/update.dart';
 import 'app.dart';
 import 'format.dart';
+import 'update_dialog.dart';
 import 'widgets.dart';
 
 class DevicesTab extends StatelessWidget {
-  const DevicesTab({super.key, required this.controller});
+  const DevicesTab({super.key, required this.controller, this.update});
 
   final AppController controller;
+  final UpdateService? update;
 
   Future<void> _unbind(BuildContext context) async {
     final ok = await confirm(
@@ -84,6 +87,35 @@ class DevicesTab extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           Text('释放设备请在电脑端或管理后台操作。', style: theme.mutedText.copyWith(fontSize: 13)),
+          if (update case final update?) ...[
+            const SizedBox(height: 24),
+            const SectionTitle('关于'),
+            ShadCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ListRow(
+                    leading: const IconTile(LucideIcons.info),
+                    title: '当前版本 v${update.currentVersion}',
+                    trailing: ShadButton.outline(
+                      size: ShadButtonSize.sm,
+                      onPressed: () => checkForUpdate(context, update, manual: true),
+                      child: const Text('检查更新'),
+                    ),
+                  ),
+                  if (update.platform == 'ios' && update.sourceUrl != null) ...[
+                    const Divider(height: 1),
+                    ListRow(
+                      leading: const IconTile(LucideIcons.packagePlus),
+                      title: '全能签软件源',
+                      subtitle: Text('${update.sourceUrl}\n点击复制，在全能签「软件源」中添加后可直接更新'),
+                      onTap: () => copyText(context, update.sourceUrl.toString(), done: '软件源地址已复制'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 32),
           ShadButton.outline(
             onPressed: () => _unbind(context),

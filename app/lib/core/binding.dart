@@ -136,7 +136,7 @@ class BindingService {
         'deviceId': deviceId,
         'platform': platform,
         'deviceName': deviceName,
-        'appVersion': AppConfig.appVersion,
+        'appVersion': config.appVersion,
         'x25519PublicKey': base64UrlEncodeNoPad(keys.x25519PublicKey),
         'ed25519PublicKey': base64UrlEncodeNoPad(keys.ed25519PublicKey),
       };

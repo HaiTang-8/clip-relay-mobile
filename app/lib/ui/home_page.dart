@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../app/app_controller.dart';
+import '../core/update.dart';
 import '../platform/share_intake.dart';
 import 'app.dart';
 import 'devices_tab.dart';
@@ -9,11 +10,12 @@ import 'inbox_tab.dart';
 import 'send_tab.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.controller, required this.share, required this.links});
+  const HomePage({super.key, required this.controller, required this.share, required this.links, this.update});
 
   final AppController controller;
   final ShareIntake share;
   final DeepLinks links;
+  final UpdateService? update;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -79,7 +81,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           children: [
             InboxTab(controller: controller),
             SendTab(controller: controller, share: widget.share),
-            DevicesTab(controller: controller),
+            DevicesTab(controller: controller, update: widget.update),
           ],
         ),
       ),

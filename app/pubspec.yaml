@@ -30,6 +30,7 @@ dependencies:
     path: ../packages/relay_crypto
   share_plus: ^13.3.1
   shadcn_ui: ^0.53.6
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_lints: ^6.0.0

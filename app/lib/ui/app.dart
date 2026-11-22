@@ -6,9 +6,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../app/app_controller.dart';
+import '../core/update.dart';
 import '../platform/share_intake.dart';
 import 'bind_page.dart';
 import 'home_page.dart';
+import 'update_dialog.dart';
 
 class DeepLinks with WidgetsBindingObserver {
   final ValueNotifier<String?> bindUri = ValueNotifier(null);
@@ -60,11 +62,12 @@ ShadThemeData _theme(Brightness brightness, MediaQueryData media) {
 }
 
 class ClipRelayApp extends StatelessWidget {
-  const ClipRelayApp({super.key, required this.controller, required this.share, required this.links});
+  const ClipRelayApp({super.key, required this.controller, required this.share, required this.links, this.update});
 
   final AppController controller;
   final ShareIntake share;
   final DeepLinks links;
+  final UpdateService? update;
 
   @override
   Widget build(BuildContext context) {
@@ -80,18 +83,43 @@ class ClipRelayApp extends StatelessWidget {
         supportedLocales: const [Locale('zh', 'CN')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         builder: (context, child) => ShadAppBuilder(child: child),
-        home: ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) {
-            if (!controller.ready) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            return controller.bound
-                ? HomePage(controller: controller, share: share, links: links)
-                : BindPage(controller: controller, links: links);
-          },
+        home: _AutoUpdateCheck(
+          update: update,
+          child: ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              if (!controller.ready) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return controller.bound
+                  ? HomePage(controller: controller, share: share, links: links, update: update)
+                  : BindPage(controller: controller, links: links);
+            },
+          ),
         ),
       ),
     );
   }
+}
+
+class _AutoUpdateCheck extends StatefulWidget {
+  const _AutoUpdateCheck({required this.update, required this.child});
+
+  final UpdateService? update;
+  final Widget child;
+
+  @override
+  State<_AutoUpdateCheck> createState() => _AutoUpdateCheckState();
+}
+
+class _AutoUpdateCheckState extends State<_AutoUpdateCheck> {
+  @override
+  void initState() {
+    super.initState();
+    final update = widget.update;
+    if (update != null) WidgetsBinding.instance.addPostFrameCallback((_) => checkForUpdate(context, update));
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 void showMessage(BuildContext context, Object message) {
