@@ -72,7 +72,10 @@ class _SendTabState extends State<SendTab> {
     showMessage(context, '已载入分享内容，确认后点击发送');
   }
 
+  void _unfocus() => FocusScope.of(context).unfocus();
+
   Future<void> _pickImages() async {
+    _unfocus();
     try {
       final images = await ImagePicker().pickMultiImage(requestFullMetadata: false);
       final entries = [for (final image in images) await SourceEntry.fromFile(image.path, name: image.name)];
@@ -83,6 +86,7 @@ class _SendTabState extends State<SendTab> {
   }
 
   Future<void> _pickFiles() async {
+    _unfocus();
     try {
       final picked = await FilePicker.pickFiles();
       final entries = <SourceEntry>[];
@@ -122,7 +126,7 @@ class _SendTabState extends State<SendTab> {
     final allImages = entries.every((e) => e.mime.startsWith('image/'));
     return SendDraft(
       kind: allImages ? 'image' : 'files',
-      entries: entries,
+      entries: List.of(entries),
       thumbnail: allImages ? await makeThumbnail(entries.first.path!) : null,
       expiresIn: _expiresIn,
       deleteAfterPickup: _deleteAfterPickup,
@@ -131,6 +135,7 @@ class _SendTabState extends State<SendTab> {
 
   Future<void> _send({String? text, List<SourceEntry>? files}) async {
     if (_busy) return;
+    _unfocus();
     setState(() => _busy = true);
     try {
       final draft = await _draft(text: text, files: files);
@@ -217,113 +222,121 @@ class _SendTabState extends State<SendTab> {
     final outgoing = controller.transfers.values.where((t) => t.outgoing).toList();
     final failedJobs = controller.outbox.values.where((job) => !controller.transfers.containsKey('send-${job.itemId}')).toList();
     final total = _files.fold(0, (sum, e) => sum + e.size);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        SectionTitle('一键发送剪贴板', trailing: PasteButton(onPasted: _onPasted)),
-        const ShadSeparator.horizontal(margin: EdgeInsets.symmetric(vertical: 12)),
-        if (_files.isEmpty)
-          ShadTextarea(controller: _text, minHeight: 120, maxHeight: 260, placeholder: const Text('输入要发送的文本'))
-        else
-          ShadCard(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (index, entry) in _files.indexed)
-                  ListRow(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                    leading: IconTile(entry.mime.startsWith('image/') ? LucideIcons.image : LucideIcons.file, size: 36),
-                    title: entry.name,
-                    subtitle: Text(formatBytes(entry.size)),
-                    trailing: ShadIconButton.ghost(
-                      icon: const Icon(LucideIcons.x, size: 16),
-                      onPressed: () => setState(() => _files.removeAt(index)),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _unfocus,
+      child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(16),
+        children: [
+          SectionTitle('一键发送剪贴板', trailing: PasteButton(onPasted: _onPasted)),
+          const ShadSeparator.horizontal(margin: EdgeInsets.symmetric(vertical: 12)),
+          if (_files.isEmpty)
+            ShadTextarea(controller: _text, minHeight: 120, maxHeight: 260, placeholder: const Text('输入要发送的文本'))
+          else
+            ShadCard(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (index, entry) in _files.indexed)
+                    ListRow(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                      leading: IconTile(entry.mime.startsWith('image/') ? LucideIcons.image : LucideIcons.file, size: 36),
+                      title: entry.name,
+                      subtitle: Text(formatBytes(entry.size)),
+                      trailing: ShadIconButton.ghost(
+                        icon: const Icon(LucideIcons.x, size: 16),
+                        onPressed: () => setState(() => _files.removeAt(index)),
+                      ),
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: Text(
-                    '合计 ${formatBytes(total)}${total > maxPlaintextBytes ? '（超过 100 MB 上限）' : ''}',
-                    style: theme.mutedText.copyWith(fontSize: 13, color: total > maxPlaintextBytes ? theme.colorScheme.destructive : null),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ShadButton.outline(onPressed: _pickImages, leading: const Icon(LucideIcons.images, size: 16), child: const Text('图片')),
-            ShadButton.outline(onPressed: _pickFiles, leading: const Icon(LucideIcons.paperclip, size: 16), child: const Text('文件')),
-            if (_files.isNotEmpty) ShadButton.ghost(onPressed: () => setState(_files.clear), child: const Text('改为发送文本')),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Text('有效期', style: theme.textTheme.small),
-        const SizedBox(height: 8),
-        ShadTabs<String>(
-          value: _expiresIn,
-          onChanged: (value) => setState(() => _expiresIn = value),
-          tabs: [for (final e in expiryOptions.entries) ShadTab(value: e.key, child: Text(e.value))],
-        ),
-        const SizedBox(height: 16),
-        ShadSwitch(
-          value: _deleteAfterPickup,
-          onChanged: (value) => setState(() => _deleteAfterPickup = value),
-          label: const Text('取件后即删'),
-          sublabel: const Text('其他设备首次取件完成后自动删除'),
-        ),
-        const SizedBox(height: 20),
-        ShadButton(
-          size: ShadButtonSize.lg,
-          onPressed: _busy ? null : () => _send(),
-          leading: const Icon(LucideIcons.send, size: 18),
-          child: Text(_busy ? '正在准备…' : '发送'),
-        ),
-        for (final transfer in outgoing) _TransferCard(controller: controller, transfer: transfer),
-        if (failedJobs.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          const SectionTitle('未完成的发送'),
-          ShadCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (final (i, job) in failedJobs.indexed) ...[
-                  if (i > 0) const Divider(height: 1),
-                  ListRow(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                    title: job.summary,
-                    subtitle: Text('取件码 ${job.pickupCode} · ${formatBytes(job.plaintextSize)}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ShadButton.ghost(
-                          size: ShadButtonSize.sm,
-                          onPressed: () async {
-                            try {
-                              final result = await controller.resumeSend(job);
-                              if (context.mounted) await _showResult(result);
-                            } on TransferCancelled {
-                              // user cancelled
-                            } catch (error) {
-                              if (context.mounted) showMessage(context, '发送失败：$error');
-                            }
-                          },
-                          child: const Text('继续'),
-                        ),
-                        ShadButton.ghost(size: ShadButtonSize.sm, onPressed: () => controller.discardSend(job), child: const Text('放弃')),
-                      ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Text(
+                      '合计 ${formatBytes(total)}${total > maxPlaintextBytes ? '（超过 100 MB 上限）' : ''}',
+                      style: theme.mutedText.copyWith(
+                        fontSize: 13,
+                        color: total > maxPlaintextBytes ? theme.colorScheme.destructive : null,
+                      ),
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ShadButton.outline(onPressed: _pickImages, leading: const Icon(LucideIcons.images, size: 16), child: const Text('图片')),
+              ShadButton.outline(onPressed: _pickFiles, leading: const Icon(LucideIcons.paperclip, size: 16), child: const Text('文件')),
+              if (_files.isNotEmpty) ShadButton.ghost(onPressed: () => setState(_files.clear), child: const Text('改为发送文本')),
+            ],
           ),
+          const SizedBox(height: 20),
+          Text('有效期', style: theme.textTheme.small),
+          const SizedBox(height: 8),
+          ShadTabs<String>(
+            value: _expiresIn,
+            onChanged: (value) => setState(() => _expiresIn = value),
+            tabs: [for (final e in expiryOptions.entries) ShadTab(value: e.key, child: Text(e.value))],
+          ),
+          const SizedBox(height: 16),
+          ShadSwitch(
+            value: _deleteAfterPickup,
+            onChanged: (value) => setState(() => _deleteAfterPickup = value),
+            label: const Text('取件后即删'),
+            sublabel: const Text('其他设备首次取件完成后自动删除'),
+          ),
+          const SizedBox(height: 20),
+          ShadButton(
+            size: ShadButtonSize.lg,
+            onPressed: _busy ? null : () => _send(),
+            leading: const Icon(LucideIcons.send, size: 18),
+            child: Text(_busy ? '正在准备…' : '发送'),
+          ),
+          for (final transfer in outgoing) _TransferCard(controller: controller, transfer: transfer),
+          if (failedJobs.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const SectionTitle('未完成的发送'),
+            ShadCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  for (final (i, job) in failedJobs.indexed) ...[
+                    if (i > 0) const Divider(height: 1),
+                    ListRow(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                      title: job.summary,
+                      subtitle: Text('取件码 ${job.pickupCode} · ${formatBytes(job.plaintextSize)}'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ShadButton.ghost(
+                            size: ShadButtonSize.sm,
+                            onPressed: () async {
+                              try {
+                                final result = await controller.resumeSend(job);
+                                if (context.mounted) await _showResult(result);
+                              } on TransferCancelled {
+                                // user cancelled
+                              } catch (error) {
+                                if (context.mounted) showMessage(context, '发送失败：$error');
+                              }
+                            },
+                            child: const Text('继续'),
+                          ),
+                          ShadButton.ghost(size: ShadButtonSize.sm, onPressed: () => controller.discardSend(job), child: const Text('放弃')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
